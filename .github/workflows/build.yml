@@ -1,0 +1,131 @@
+name: Build and Publish
+
+on:
+  push:
+    paths:
+      - 'versions.yml'
+  workflow_dispatch:
+    inputs:
+      versions_file:
+        description: Path to the YAML file that lists CNPG/PostGIS and pgvector pairs
+        required: false
+        default: versions.yml
+
+jobs:
+  prepare:
+    name: Generate matrix
+    runs-on: ubuntu-latest
+    env:
+      VERSIONS_FILE: ${{ github.event.inputs.versions_file || 'versions.yml' }}
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: python -m pip install pyyaml
+
+      - name: Build matrix from versions file
+        id: matrix
+        run: |
+          set -eux
+          file="${{ env.VERSIONS_FILE }}"
+          if [[ ! -f "$file" ]]; then
+            echo "Versions file '$file' not found" >&2
+            exit 1
+          fi
+          matrix=$(python - <<'PY'
+import json
+import os
+
+import yaml
+
+path = os.environ["VERSIONS_FILE"]
+with open(path) as handle:
+    data = yaml.safe_load(handle) or {}
+builds = data.get("builds") or []
+if not builds:
+    raise SystemExit("The versions file must expose a non-empty 'builds' list")
+
+entries = []
+seen = set()
+vector_keys = ("vector", "vector_version")
+for build in builds:
+    base_tag = build.get("postgis") or build.get("base_tag") or build.get("version")
+    if not base_tag:
+        raise SystemExit("Each build entry must specify a 'postgis' tag")
+    vector_value = None
+    for key in vector_keys:
+        if key in build:
+            vector_value = build[key]
+            break
+    if vector_value is None:
+        raise SystemExit(f"Build entry for {base_tag} needs exactly one pgvector version")
+    if isinstance(vector_value, (list, tuple)):
+        raise SystemExit(
+            f"Build entry for {base_tag} must list a single pgvector version, not {type(vector_value).__name__}"
+        )
+    vector_raw = str(vector_value).strip()
+    if not vector_raw:
+        raise SystemExit("pgvector version entries must be non-empty strings")
+    vector_version = vector_raw[1:] if vector_raw.startswith("v") else vector_raw
+    key = (base_tag, vector_version)
+    if key in seen:
+        continue
+    seen.add(key)
+    entries.append(
+        {
+            "base_tag": base_tag,
+            "vector_version": vector_version,
+            "image_tag": f"{base_tag}-pgvector-{vector_version}",
+        }
+    )
+if not entries:
+    raise SystemExit("No build combinations generated from the versions file")
+print(json.dumps(entries))
+PY
+          )
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and push every combination
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository_owner }}/cnpg-postgis-vector
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ matrix.image_tag }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASE_TAG=${{ matrix.base_tag }}
+            PGVECTOR_VERSION=${{ matrix.vector_version }}
