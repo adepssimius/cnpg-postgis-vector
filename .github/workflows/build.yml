@@ -23,8 +23,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: python -m pip install pyyaml
+      - name: Install PyYAML
+        run: python -m pip install --quiet --disable-pip-version-check --no-cache-dir pyyaml
 
       - name: Build matrix from versions file
         id: matrix
@@ -35,61 +35,46 @@ jobs:
             echo "Versions file '$file' not found" >&2
             exit 1
           fi
-          matrix=$(python - <<'PY'
-import json
-import os
+          matrix=$(python -c "
+          import json, os
+          import yaml
 
-import yaml
+          path = os.environ['VERSIONS_FILE']
+          with open(path) as handle:
+              data = yaml.safe_load(handle) or {}
+          builds = data.get('builds') or []
+          if not builds:
+              raise SystemExit('The versions file must expose a non-empty \"builds\" list')
 
-path = os.environ["VERSIONS_FILE"]
-with open(path) as handle:
-    data = yaml.safe_load(handle) or {}
-builds = data.get("builds") or []
-if not builds:
-    raise SystemExit("The versions file must expose a non-empty 'builds' list")
-
-entries = []
-seen = set()
-vector_keys = ("vector", "vector_version")
-for build in builds:
-    base_tag = build.get("postgis") or build.get("base_tag") or build.get("version")
-    if not base_tag:
-        raise SystemExit("Each build entry must specify a 'postgis' tag")
-    vector_value = None
-    for key in vector_keys:
-        if key in build:
-            vector_value = build[key]
-            break
-    if vector_value is None:
-        raise SystemExit(f"Build entry for {base_tag} needs exactly one pgvector version")
-    if isinstance(vector_value, (list, tuple)):
-        raise SystemExit(
-            f"Build entry for {base_tag} must list a single pgvector version, not {type(vector_value).__name__}"
-        )
-    vector_raw = str(vector_value).strip()
-    if not vector_raw:
-        raise SystemExit("pgvector version entries must be non-empty strings")
-    vector_version = vector_raw[1:] if vector_raw.startswith("v") else vector_raw
-    key = (base_tag, vector_version)
-    if key in seen:
-        continue
-    seen.add(key)
-    entries.append(
-        {
-            "base_tag": base_tag,
-            "vector_version": vector_version,
-            "image_tag": f"{base_tag}-pgvector-{vector_version}",
-        }
-    )
-if not entries:
-    raise SystemExit("No build combinations generated from the versions file")
-print(json.dumps(entries))
-PY
-          )
+          entries = []
+          seen = set()
+          for build in builds:
+              base_tag = build.get('postgis')
+              if not base_tag:
+                  raise SystemExit('Each build entry must specify a \"postgis\" tag')
+              vector_raw = str(build.get('vector', '')).strip()
+              if not vector_raw:
+                  raise SystemExit('pgvector version entries must be non-empty strings')
+              vector_version = vector_raw[1:] if vector_raw.startswith('v') else vector_raw
+              key = (base_tag, vector_version)
+              if key in seen:
+                  continue
+              seen.add(key)
+              entries.append(
+                  {
+                      'base_tag': base_tag,
+                      'vector_version': vector_version,
+                      'image_tag': f'{base_tag}-pgvector-{vector_version}',
+                  }
+              )
+          if not entries:
+              raise SystemExit('No build combinations generated from the versions file')
+          print(json.dumps(entries))
+          " )
           echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build and push every combination
+    name: Build and push
     needs: prepare
     runs-on: ubuntu-latest
     permissions:
