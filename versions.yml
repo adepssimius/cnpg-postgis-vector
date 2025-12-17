@@ -3,6 +3,7 @@
 ### pgvector releases: https://github.com/pgvector/pgvector/releases
 ### VectorChord releases: https://github.com/tensorchord/VectorChord/releases
 # Trigger rebuild after pgvector/packaging changes (vchord support)
+# clang-16 toolchain rebuild for glibc-2.31 compatibility
 builds:
   - postgis: 17-3.5
     vector: 0.8.1
