@@ -9,6 +9,7 @@ ARG PGVECTOR_VERSION=0.8.1
 # Install pgvector extension from source
 RUN set -eux \
     && export DEBIAN_FRONTEND=noninteractive \
+    && PG_MAJOR="$(pg_config --version | awk '{print $2}' | cut -d. -f1)" \
     && mkdir -p /var/lib/apt/lists/partial \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -16,7 +17,7 @@ RUN set -eux \
         ca-certificates \
         curl \
         libpq-dev \
-        postgresql-server-dev-all \
+        "postgresql-server-dev-${PG_MAJOR}" \
     && curl -sSL "https://github.com/pgvector/pgvector/archive/refs/tags/v${PGVECTOR_VERSION}.tar.gz" \
         | tar -xz -C /tmp \
     && cd /tmp/pgvector-${PGVECTOR_VERSION} \
@@ -28,7 +29,7 @@ RUN set -eux \
         build-essential \
         curl \
         libpq-dev \
-        postgresql-server-dev-all \
+        "postgresql-server-dev-${PG_MAJOR}" \
     && rm -rf /var/lib/apt/lists/*
 
 USER postgres
