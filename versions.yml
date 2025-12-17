@@ -1,6 +1,7 @@
 ### Source links:
 ### CNPG PostGIS releases: https://github.com/cloudnative-pg/postgis/releases
 ### pgvector releases: https://github.com/pgvector/pgvector/releases
+# Trigger rebuild after pgvector/packaging changes
 builds:
   - postgis: 17-3.5
     vector: 0.8.1
