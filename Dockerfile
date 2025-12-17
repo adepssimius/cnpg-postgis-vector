@@ -8,7 +8,7 @@ USER root
 ARG PGVECTOR_VERSION=0.8.1
 ARG VCHORD_VERSION=1.0.0
 
-# Build pgvector from source and install VectorChord artifacts from release zips
+# Build pgvector from source and VectorChord from source (packages against this base)
 RUN set -eux \
     && export DEBIAN_FRONTEND=noninteractive \
     && PG_MAJOR="$(pg_config --version | awk '{print $2}' | cut -d. -f1)" \
@@ -19,9 +19,12 @@ RUN set -eux \
         ca-certificates \
         curl \
         gnupg \
-        unzip \
         build-essential \
         libpq-dev \
+        pkg-config \
+        libssl-dev \
+        llvm-14 \
+        clang-14 \
         "postgresql-server-dev-${PG_MAJOR}" \
     && echo "deb http://apt.postgresql.org/pub/repos/apt/ ${CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
@@ -34,27 +37,30 @@ RUN set -eux \
     && make \
     && make install \
     && cd / \
-    # VectorChord prebuilt extension (latest release assets)
-    && ARCH_TAG="" \
-    && case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
-        amd64) ARCH_TAG="x86_64-linux-gnu" ;; \
-        arm64|aarch64) ARCH_TAG="aarch64-linux-gnu" ;; \
-        *) echo "Unsupported arch ${TARGETARCH:-$(dpkg --print-architecture)}" >&2; exit 1 ;; \
-    esac \
-    && VCHORD_ZIP="postgresql-${PG_MAJOR}-vchord_${VCHORD_VERSION}_${ARCH_TAG}.zip" \
-    && curl -fsSL -o "/tmp/${VCHORD_ZIP}" "https://github.com/tensorchord/VectorChord/releases/download/${VCHORD_VERSION}/${VCHORD_ZIP}" \
-    && unzip -q "/tmp/${VCHORD_ZIP}" -d /tmp/vchord \
-    && install -D /tmp/vchord/pkglibdir/vchord.so /usr/lib/postgresql/${PG_MAJOR}/lib/vchord.so \
-    && install -D /tmp/vchord/sharedir/extension/vchord.control /usr/share/postgresql/${PG_MAJOR}/extension/vchord.control \
-    && install -m 644 /tmp/vchord/sharedir/extension/vchord--*.sql /usr/share/postgresql/${PG_MAJOR}/extension/ \
+    # VectorChord from source
+    && curl -sSL "https://sh.rustup.rs" | sh -s -- -y --default-toolchain stable \
+    && . "$HOME/.cargo/env" \
+    && cargo install cargo-pgx --version 0.16.1 \
+    && cargo pgx init --pg${PG_MAJOR} "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config" \
+    && curl -sSL "https://github.com/tensorchord/VectorChord/archive/refs/tags/${VCHORD_VERSION}.tar.gz" \
+        | tar -xz -C /tmp \
+    && cd /tmp/VectorChord-${VCHORD_VERSION} \
+    && . "$HOME/.cargo/env" \
+    && cargo pgx package --release --pg${PG_MAJOR} --features pg${PG_MAJOR} \
+    && mkdir -p /tmp/vchord-out/lib /tmp/vchord-out/extension \
+    && cp -R "target/release/vchord-pg${PG_MAJOR}/usr/lib/postgresql/${PG_MAJOR}/lib/." /tmp/vchord-out/lib/ \
+    && cp -R "target/release/vchord-pg${PG_MAJOR}/usr/share/postgresql/${PG_MAJOR}/extension/." /tmp/vchord-out/extension/ \
     # Cleanup build deps and caches
-    && rm -rf /tmp/pgvector-${PGVECTOR_VERSION} /tmp/vchord /tmp/${VCHORD_ZIP} \
+    && rm -rf /tmp/pgvector-${PGVECTOR_VERSION} /tmp/VectorChord-${VCHORD_VERSION} \
     && apt-get purge -y --auto-remove \
         build-essential \
         curl \
         gnupg \
         libpq-dev \
-        unzip \
+        pkg-config \
+        libssl-dev \
+        llvm-14 \
+        clang-14 \
         "postgresql-server-dev-${PG_MAJOR}" \
     && rm -rf /var/lib/apt/lists/*
 
@@ -76,5 +82,7 @@ RUN set -eux \
 COPY --from=builder /usr/lib/postgresql/ /usr/lib/postgresql/
 COPY --from=builder /usr/share/postgresql/ /usr/share/postgresql/
 COPY --from=builder /usr/include/postgresql/ /usr/include/postgresql/
+COPY --from=builder /tmp/vchord-out/lib/ /usr/lib/postgresql/${PG_MAJOR}/lib/
+COPY --from=builder /tmp/vchord-out/extension/ /usr/share/postgresql/${PG_MAJOR}/extension/
 
 USER postgres
