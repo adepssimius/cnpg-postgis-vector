@@ -17,10 +17,10 @@ RUN set -eux \
     && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
     && echo "deb http://apt.postgresql.org/pub/repos/apt/ ${CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
-    && echo "deb https://deb.debian.org/debian ${CODENAME}-backports main" > /etc/apt/sources.list.d/backports.list \
+    && echo "deb http://archive.debian.org/debian ${CODENAME}-backports main" > /etc/apt/sources.list.d/backports.list \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
         | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg \
-    && apt-get update \
+    && apt-get -o Acquire::Check-Valid-Until=false update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         libpq-dev \
@@ -28,8 +28,8 @@ RUN set -eux \
         libssl-dev \
         llvm \
         clang \
-        gcc-12 \
-        g++-12 \
+        gcc-12/bullseye-backports \
+        g++-12/bullseye-backports \
         "postgresql-server-dev-${PG_MAJOR}" \
     # pgvector from source
     && curl -sSL "https://github.com/pgvector/pgvector/archive/refs/tags/v${PGVECTOR_VERSION}.tar.gz" \
