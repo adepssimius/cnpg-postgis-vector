@@ -15,21 +15,19 @@ RUN set -eux \
     && CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME}")" \
     && mkdir -p /var/lib/apt/lists/partial \
     && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        gnupg \
-        build-essential \
-        libpq-dev \
-        pkg-config \
-        libssl-dev \
-        llvm-14 \
-        clang-14 \
-        "postgresql-server-dev-${PG_MAJOR}" \
+    && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
     && echo "deb http://apt.postgresql.org/pub/repos/apt/ ${CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
         | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg \
     && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
+        pkg-config \
+        libssl-dev \
+        llvm \
+        clang \
+        "postgresql-server-dev-${PG_MAJOR}" \
     # pgvector from source
     && curl -sSL "https://github.com/pgvector/pgvector/archive/refs/tags/v${PGVECTOR_VERSION}.tar.gz" \
         | tar -xz -C /tmp \
@@ -59,8 +57,8 @@ RUN set -eux \
         libpq-dev \
         pkg-config \
         libssl-dev \
-        llvm-14 \
-        clang-14 \
+        llvm \
+        clang \
         "postgresql-server-dev-${PG_MAJOR}" \
     && rm -rf /var/lib/apt/lists/*
 
@@ -84,5 +82,14 @@ COPY --from=builder /usr/share/postgresql/ /usr/share/postgresql/
 COPY --from=builder /usr/include/postgresql/ /usr/include/postgresql/
 COPY --from=builder /tmp/vchord-out/lib/ /usr/lib/postgresql/${PG_MAJOR}/lib/
 COPY --from=builder /tmp/vchord-out/extension/ /usr/share/postgresql/${PG_MAJOR}/extension/
+
+RUN set -eux \
+    && PG_MAJOR="$(pg_config --version | awk '{print $2}' | cut -d. -f1)" \
+    && for sample in /usr/share/postgresql/postgresql.conf.sample /usr/share/postgresql/${PG_MAJOR}/postgresql.conf.sample; do \
+         if [[ -f "${sample}" ]]; then \
+           perl -0pi -e "s/^#?shared_preload_libraries\\s*=.*$/shared_preload_libraries = 'pg_stat_statements,vchord'/m" "${sample}"; \
+           grep -q "shared_preload_libraries = 'pg_stat_statements,vchord'" "${sample}" || echo "shared_preload_libraries = 'pg_stat_statements,vchord'" >> "${sample}"; \
+         fi; \
+       done
 
 USER postgres

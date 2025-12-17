@@ -116,12 +116,15 @@ jobs:
             BASE_TAG=${{ matrix.base_tag }}
             PGVECTOR_VERSION=${{ matrix.vector_version }}
 
-      - name: Test image (start + pgvector)
+      - name: Test image (pgvector + vchord)
         run: |
           set -eux
           image="${REGISTRY}/${IMAGE_NAME}:${{ matrix.image_tag }}"
           container="pgvector-test-${{ matrix.base_tag }}-${{ matrix.vector_version }}-${GITHUB_RUN_NUMBER}"
-          docker run -d --name "$container" -e POSTGRES_PASSWORD=test "$image"
+          docker run -d --name "$container" \
+            -e POSTGRES_PASSWORD=test \
+            "$image" \
+            -c shared_preload_libraries='pg_stat_statements,vchord'
           cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
           trap cleanup EXIT
           for _ in $(seq 1 30); do
@@ -130,4 +133,10 @@ jobs:
             fi
             sleep 2
           done
-          docker exec -e PGPASSWORD=test "$container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          docker exec -e PGPASSWORD=test "$container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+            SHOW shared_preload_libraries;
+            SELECT name FROM pg_available_extensions WHERE name IN ('vector','vchord') ORDER BY name;
+            CREATE EXTENSION IF NOT EXISTS vector;
+            CREATE EXTENSION IF NOT EXISTS vchord;
+            SELECT extname FROM pg_extension WHERE extname IN ('vector','vchord') ORDER BY extname;
+SQL
