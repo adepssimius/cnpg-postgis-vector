@@ -17,11 +17,9 @@ RUN set -eux \
     && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
     && echo "deb http://apt.postgresql.org/pub/repos/apt/ ${CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && echo "deb http://deb.debian.org/debian ${CODENAME}-backports main" > /etc/apt/sources.list.d/backports.list \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
         | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg \
-    && curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
-        | gpg --dearmor -o /etc/apt/trusted.gpg.d/apt.llvm.org.gpg \
-    && echo "deb http://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-16 main" > /etc/apt/sources.list.d/llvm.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
@@ -30,8 +28,8 @@ RUN set -eux \
         libssl-dev \
         llvm \
         clang \
-        clang-16 \
-        lld-16 \
+        gcc-12 \
+        g++-12 \
         "postgresql-server-dev-${PG_MAJOR}" \
     # pgvector from source
     && curl -sSL "https://github.com/pgvector/pgvector/archive/refs/tags/v${PGVECTOR_VERSION}.tar.gz" \
@@ -43,7 +41,7 @@ RUN set -eux \
     # VectorChord from source
     && curl -sSL "https://sh.rustup.rs" | sh -s -- -y --default-toolchain stable \
     && . "$HOME/.cargo/env" \
-    && export CC=clang-16 CXX=clang++-16 \
+    && export CC=gcc-12 CXX=g++-12 \
     && cargo install cargo-pgrx --version 0.16.1 \
     && cargo pgrx init --pg${PG_MAJOR} "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config" \
     && curl -sSL "https://github.com/tensorchord/VectorChord/archive/refs/tags/${VCHORD_VERSION}.tar.gz" \
@@ -65,8 +63,8 @@ RUN set -eux \
         libssl-dev \
         llvm \
         clang \
-        clang-16 \
-        lld-16 \
+        gcc-12 \
+        g++-12 \
         "postgresql-server-dev-${PG_MAJOR}" \
     && rm -rf /var/lib/apt/lists/*
 
