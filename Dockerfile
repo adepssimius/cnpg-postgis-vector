@@ -44,7 +44,7 @@ RUN set -eux \
         | tar -xz -C /tmp \
     && cd /tmp/VectorChord-${VCHORD_VERSION} \
     && . "$HOME/.cargo/env" \
-    && cargo pgrx package --pg${PG_MAJOR} --features pg${PG_MAJOR} \
+    && cargo pgrx package --pg-config "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config" --features pg${PG_MAJOR} \
     && mkdir -p /tmp/vchord-out/lib /tmp/vchord-out/extension \
     && cp -R "target/release/vchord-pg${PG_MAJOR}/usr/lib/postgresql/${PG_MAJOR}/lib/." /tmp/vchord-out/lib/ \
     && cp -R "target/release/vchord-pg${PG_MAJOR}/usr/share/postgresql/${PG_MAJOR}/extension/." /tmp/vchord-out/extension/ \
