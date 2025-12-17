@@ -38,7 +38,7 @@ RUN set -eux \
     # VectorChord from source
     && curl -sSL "https://sh.rustup.rs" | sh -s -- -y --default-toolchain stable \
     && . "$HOME/.cargo/env" \
-    && cargo install cargo-pgx --version 0.16.1 \
+    && cargo install cargo-pgx --version 0.7.4 \
     && cargo pgx init --pg${PG_MAJOR} "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config" \
     && curl -sSL "https://github.com/tensorchord/VectorChord/archive/refs/tags/${VCHORD_VERSION}.tar.gz" \
         | tar -xz -C /tmp \
