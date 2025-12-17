@@ -17,7 +17,7 @@ RUN set -eux \
     && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
     && echo "deb http://apt.postgresql.org/pub/repos/apt/ ${CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
-    && echo "deb http://deb.debian.org/debian ${CODENAME}-backports main" > /etc/apt/sources.list.d/backports.list \
+    && echo "deb https://deb.debian.org/debian ${CODENAME}-backports main" > /etc/apt/sources.list.d/backports.list \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
         | gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg \
     && apt-get update \
