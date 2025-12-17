@@ -139,4 +139,4 @@ jobs:
             CREATE EXTENSION IF NOT EXISTS vector;
             CREATE EXTENSION IF NOT EXISTS vchord;
             SELECT extname FROM pg_extension WHERE extname IN ('vector','vchord') ORDER BY extname;
-SQL
+          SQL
