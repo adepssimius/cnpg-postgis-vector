@@ -38,13 +38,13 @@ RUN set -eux \
     # VectorChord from source
     && curl -sSL "https://sh.rustup.rs" | sh -s -- -y --default-toolchain stable \
     && . "$HOME/.cargo/env" \
-    && cargo install --git https://github.com/pgcentralfoundation/pgrx --tag v0.16.1 cargo-pgx \
-    && cargo pgx init --pg${PG_MAJOR} "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config" \
+    && cargo install cargo-pgrx --version 0.16.1 \
+    && cargo pgrx init --pg${PG_MAJOR} "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config" \
     && curl -sSL "https://github.com/tensorchord/VectorChord/archive/refs/tags/${VCHORD_VERSION}.tar.gz" \
         | tar -xz -C /tmp \
     && cd /tmp/VectorChord-${VCHORD_VERSION} \
     && . "$HOME/.cargo/env" \
-    && cargo pgx package --release --pg${PG_MAJOR} --features pg${PG_MAJOR} \
+    && cargo pgrx package --release --pg${PG_MAJOR} --features pg${PG_MAJOR} \
     && mkdir -p /tmp/vchord-out/lib /tmp/vchord-out/extension \
     && cp -R "target/release/vchord-pg${PG_MAJOR}/usr/lib/postgresql/${PG_MAJOR}/lib/." /tmp/vchord-out/lib/ \
     && cp -R "target/release/vchord-pg${PG_MAJOR}/usr/share/postgresql/${PG_MAJOR}/extension/." /tmp/vchord-out/extension/ \
