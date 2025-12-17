@@ -115,3 +115,19 @@ jobs:
           build-args: |
             BASE_TAG=${{ matrix.base_tag }}
             PGVECTOR_VERSION=${{ matrix.vector_version }}
+
+      - name: Test image (start + pgvector)
+        run: |
+          set -eux
+          image="${REGISTRY}/${IMAGE_NAME}:${{ matrix.image_tag }}"
+          container="pgvector-test-${{ matrix.base_tag }}-${{ matrix.vector_version }}-${GITHUB_RUN_NUMBER}"
+          docker run -d --name "$container" -e POSTGRES_PASSWORD=test "$image"
+          cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for _ in $(seq 1 30); do
+            if docker exec -e PGPASSWORD=test "$container" pg_isready -U postgres >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec -e PGPASSWORD=test "$container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
