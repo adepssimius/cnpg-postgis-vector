@@ -8,7 +8,7 @@ USER root
 ARG PGVECTOR_VERSION=0.8.1
 ARG VCHORD_VERSION=1.0.0
 
-# Build pgvector from source and install VectorChord from release artifacts
+# Build pgvector from source and install VectorChord artifacts from release zips
 RUN set -eux \
     && export DEBIAN_FRONTEND=noninteractive \
     && PG_MAJOR="$(pg_config --version | awk '{print $2}' | cut -d. -f1)" \
@@ -19,6 +19,7 @@ RUN set -eux \
         ca-certificates \
         curl \
         gnupg \
+        unzip \
         build-essential \
         libpq-dev \
         "postgresql-server-dev-${PG_MAJOR}" \
@@ -33,25 +34,27 @@ RUN set -eux \
     && make \
     && make install \
     && cd / \
-    # VectorChord prebuilt extension (latest release)
-    && ARCH="" \
+    # VectorChord prebuilt extension (latest release assets)
+    && ARCH_TAG="" \
     && case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
-        amd64) ARCH=amd64 ;; \
-        arm64) ARCH=arm64 ;; \
-        aarch64) ARCH=arm64 ;; \
+        amd64) ARCH_TAG="x86_64-linux-gnu" ;; \
+        arm64|aarch64) ARCH_TAG="aarch64-linux-gnu" ;; \
         *) echo "Unsupported arch ${TARGETARCH:-$(dpkg --print-architecture)}" >&2; exit 1 ;; \
     esac \
-    && VCHORD_DEB="postgresql-${PG_MAJOR}-vchord_${VCHORD_VERSION}-1_${ARCH}.deb" \
-    && curl -fsSL -o "/tmp/${VCHORD_DEB}" "https://github.com/tensorchord/VectorChord/releases/download/${VCHORD_VERSION}/${VCHORD_DEB}" \
-    && dpkg -i "/tmp/${VCHORD_DEB}" \
+    && VCHORD_ZIP="postgresql-${PG_MAJOR}-vchord_${VCHORD_VERSION}_${ARCH_TAG}.zip" \
+    && curl -fsSL -o "/tmp/${VCHORD_ZIP}" "https://github.com/tensorchord/VectorChord/releases/download/${VCHORD_VERSION}/${VCHORD_ZIP}" \
+    && unzip -q "/tmp/${VCHORD_ZIP}" -d /tmp/vchord \
+    && install -D /tmp/vchord/pkglibdir/vchord.so /usr/lib/postgresql/${PG_MAJOR}/lib/vchord.so \
+    && install -D /tmp/vchord/sharedir/extension/vchord.control /usr/share/postgresql/${PG_MAJOR}/extension/vchord.control \
+    && install -m 644 /tmp/vchord/sharedir/extension/vchord--*.sql /usr/share/postgresql/${PG_MAJOR}/extension/ \
     # Cleanup build deps and caches
-    && rm -f "/tmp/${VCHORD_DEB}" \
-    && rm -rf /tmp/pgvector-${PGVECTOR_VERSION} \
+    && rm -rf /tmp/pgvector-${PGVECTOR_VERSION} /tmp/vchord /tmp/${VCHORD_ZIP} \
     && apt-get purge -y --auto-remove \
         build-essential \
         curl \
         gnupg \
         libpq-dev \
+        unzip \
         "postgresql-server-dev-${PG_MAJOR}" \
     && rm -rf /var/lib/apt/lists/*
 
